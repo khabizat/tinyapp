@@ -2,6 +2,10 @@ const express = require("express");
 const app = express();
 const PORT = 8080; // default port 8080
 
+//body-parser library converts Buffer into a readable string 
+const bodyParser = require("body-parser");
+app.use(bodyParser.urlencoded({extended: true}));
+
 app.set("view engine", "ejs");
 
 const urlDatabase = {
@@ -28,10 +32,18 @@ app.get("/urls", (req, res) => {
   res.render("urls_index", templateVars);
 });
 
+app.post("/urls", (req, res) => {
+  console.log(req.body);  // Log the POST request body to the console
+  res.send("Ok");         // Respond with 'Ok' (temporary)
+});
 
+
+//a GET route to show the form
 app.get("/urls/new", (req, res) => {
   res.render("urls_new");
 });
+
+
 
 //create a new route handler and pass the URL data to the template using render
 app.get("/urls/:shortURL", (req, res) => {
@@ -39,10 +51,9 @@ app.get("/urls/:shortURL", (req, res) => {
   const templateVars = {
     shortURL: myShortURL,
     longURL: urlDatabase[myShortURL],
-  }
-  res.render("urls_show", templateVars )
+  };
+  res.render("urls_show", templateVars);
 });
-
 
 
 app.listen(PORT, () => {
