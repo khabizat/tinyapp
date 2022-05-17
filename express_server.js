@@ -32,21 +32,21 @@ app.get('/hello', (req, res) => {
   res.send('<html><body>Hello <b>World</b></body></html>\n');
 });
 
-//create a new route handler and pass the URL data to the template using render
+//route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
   const templateVars = { urls: urlDatabase };
   res.render('urls_index', templateVars);
 });
 
 
-//a GET route to show the form
+//route to show the form
 app.get('/urls/new', (req, res) => {
   res.render('urls_new');
 });
 
 
 
-//create a new route handler and pass the URL data to the template using render
+//route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
   const templateVars = {
@@ -56,12 +56,22 @@ app.get('/urls/:shortURL', (req, res) => {
   res.render('urls_show', templateVars);
 });
 
+//route for handling redirect links
+app.get("/u/:shortURL", (req, res) => {
+  const myShortURL = req.params.shortURL;
+  const longURL = urlDatabase[myShortURL];
+  res.redirect(longURL);
+});
+
+//redirect after receiving a POST request
 app.post('/urls', (req, res) => {
   console.log(req.body);  // Log the POST request body to the console
   const shortURL = generateRandomString(); //???
   urlDatabase[shortURL] = req.body.longURL;
   res.redirect(`/urls/${shortURL}`);
 });
+
+
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
