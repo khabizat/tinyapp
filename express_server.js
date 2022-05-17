@@ -32,17 +32,11 @@ app.get("/urls", (req, res) => {
   res.render("urls_index", templateVars);
 });
 
-app.post("/urls", (req, res) => {
-  console.log(req.body);  // Log the POST request body to the console
-  res.send("Ok");         // Respond with 'Ok' (temporary)
-});
-
 
 //a GET route to show the form
 app.get("/urls/new", (req, res) => {
   res.render("urls_new");
 });
-
 
 
 //create a new route handler and pass the URL data to the template using render
@@ -55,6 +49,15 @@ app.get("/urls/:shortURL", (req, res) => {
   res.render("urls_show", templateVars);
 });
 
+app.post("/urls", (req, res) => {
+  console.log(req.body);  // Log the POST request body to the console
+  res.send("Ok");         // Respond with 'Ok' (temporary)
+});
+
+//a function that returns a string of 6 random alphanumeric characters
+function generateRandomString() {
+  Math.random().toString(36).slice(2,8);
+}
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
