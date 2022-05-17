@@ -28,6 +28,17 @@ app.get("/urls", (req, res) => {
   res.render("urls_index", templateVars);
 });
 
+//create a new route handler and pass the URL data to the template using render
+app.get("/urls/:shortURL", (req, res) => {
+  const myShortURL = req.params.shortURL;
+  const templateVars = {
+    shortURL: myShortURL,
+    longURL: urlDatabase[myShortURL],
+  }
+  res.render("urls_show", templateVars )
+});
+
+
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
