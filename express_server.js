@@ -78,6 +78,20 @@ app.post('/urls/:shortURL/delete', (req, res) => {
   res.redirect('/urls');
 });
 
+//POST route that updates a URL resource
+app.post('/urls/:shortURL', (req, res) => {
+  console.log(req.params.shortURL);
+  const myShortURL = req.params.shortURL;
+  urlDatabase[myShortURL] = req.body.newValue;
+  res.redirect('/urls');
+});
+
+
+// app.post('/todos/:id', (request, response) => 
+// { updateTodo(request.params.id, request.body.newValue); 
+//   response.redirect('/todos'); });
+
+
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
 });
