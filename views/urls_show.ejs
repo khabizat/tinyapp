@@ -7,15 +7,20 @@
 </head>
 
 <body>
-  <header>
     <%- include('partials/_header') %>
-  </header>
   <div class="card text-center">
       <div class="card-header"></div>
       <div class="card-body">
         <h5 class="card-title">TinyURL for: <%= longURL %></h5>
         <p class="card-text">Short URL: <a href="/u/<%= shortURL %>"><%= shortURL %></a></p>
-        <a href="#">New URL</a>
+        <div>
+          <!-- ???? -->
+          <form method="POST" action="/urls/<%= shortURL %>">
+          <span> New URL: </span>
+          <input name="newValue" title="text" value="<%= longURL %>">
+          <button class="btn btn-primary" type="submit">Submit</button>
+        </form>
+        </div>
       </div>
     <div class="card-footer text-muted"></div>
   </div>
