@@ -4,11 +4,14 @@ const PORT = 8080; // default port 8080
 
 //body-parser library converts Buffer into a readable string 
 const bodyParser = require("body-parser");
+const cookieParser = require('cookie-parser');
+
 app.use(bodyParser.urlencoded({extended: true}));
+app.use(cookieParser());
 
 app.set('view engine', 'ejs');
 
-//a function that returns a string of 6 random alphanumeric characters
+//function that returns a string of 6 random alphanumeric characters
 function generateRandomString() {
   return Math.random().toString(36).slice(2,8);
 }
@@ -34,14 +37,20 @@ app.get('/hello', (req, res) => {
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
-  const templateVars = { urls: urlDatabase };
+  const templateVars = { 
+    urls: urlDatabase,
+    username: req.cookies["username"],
+   };
   res.render('urls_index', templateVars);
 });
 
 
 //route to show the form
 app.get('/urls/new', (req, res) => {
-  res.render('urls_new');
+  const templateVars = {
+    username: req.cookies["username"],
+  };
+  res.render('urls_new', templateVars);
 });
 
 
@@ -52,6 +61,7 @@ app.get('/urls/:shortURL', (req, res) => {
   const templateVars = {
     shortURL: myShortURL,
     longURL: urlDatabase[myShortURL],
+    username: req.cookies["username"],
   };
   res.render('urls_show', templateVars);
 });
@@ -86,10 +96,21 @@ app.post('/urls/:shortURL', (req, res) => {
   res.redirect('/urls');
 });
 
+//POST login route
+app.post('/login', (req, res) => {
+  const username = req.body.username;
+  res.cookie('username', username);
+  // res.send('You are logged in')
+  res.redirect('/urls');
+});
 
-// app.post('/todos/:id', (request, response) => 
-// { updateTodo(request.params.id, request.body.newValue); 
-//   response.redirect('/todos'); });
+//POST logout route
+app.post('/logout', (req, res) => {
+  const username = req.body.username;
+  res.clearCookie('username', username);
+  res.redirect('/urls');
+});
+
 
 
 app.listen(PORT, () => {
