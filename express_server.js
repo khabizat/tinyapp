@@ -2,25 +2,51 @@ const express = require('express');
 const app = express();
 const PORT = 8080; // default port 8080
 
-//body-parser library converts Buffer into a readable string 
+//middleware
 const bodyParser = require("body-parser");
 const cookieParser = require('cookie-parser');
+const morgan = require('morgan')
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
+app.use(morgan('dev'));
 
 app.set('view engine', 'ejs');
 
 //function that returns a string of 6 random alphanumeric characters
-function generateRandomString() {
+const generateRandomString = function() {
   return Math.random().toString(36).slice(2,8);
-}
+};
+
 
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com",
  
 };
+
+const users = {
+  "userRandomID": {
+    id: "userRandomID",
+    email: "user@example.com",
+    password: "purple-monkey-dinosaur"
+  },
+  "user2RandomID": {
+    id: "user2RandomID",
+    email: "user2@example.com",
+    password: "dishwasher-funk"
+  }
+};
+
+const getUserByID = function (id) {
+  for (let user in users) {
+    if (user === id) {
+      return users[user];
+    } 
+  }
+  return null;
+}
+
 
 app.get('/', (req, res) => {
   res.send('Hello!');
@@ -37,10 +63,10 @@ app.get('/hello', (req, res) => {
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
-  const templateVars = { 
+  const templateVars = {
     urls: urlDatabase,
-    username: req.cookies["username"],
-   };
+    user: getUserByID(req.cookies["user_id"]),
+  };
   res.render('urls_index', templateVars);
 });
 
@@ -48,20 +74,34 @@ app.get('/urls', (req, res) => {
 //route to show the form
 app.get('/urls/new', (req, res) => {
   const templateVars = {
-    username: req.cookies["username"],
+    user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_new', templateVars);
 });
 
 
+//GET register endpoint
+app.get('/register', (req, res) => {
+  const templateVars = {
+    user: getUserByID(req.cookies["user_id"]),
+  };
+  res.render('urls_register', templateVars);
+});
+
 
 //route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
+  if (myShortURL === 'register') {
+    const templateVars = {
+      user: getUserByID(req.cookies["user_id"]),
+    };
+    return res.render('urls_register', templateVars);
+  }
   const templateVars = {
     shortURL: myShortURL,
     longURL: urlDatabase[myShortURL],
-    username: req.cookies["username"],
+    user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_show', templateVars);
 });
@@ -100,7 +140,6 @@ app.post('/urls/:shortURL', (req, res) => {
 app.post('/login', (req, res) => {
   const username = req.body.username;
   res.cookie('username', username);
-  // res.send('You are logged in')
   res.redirect('/urls');
 });
 
@@ -111,6 +150,19 @@ app.post('/logout', (req, res) => {
   res.redirect('/urls');
 });
 
+//POST register route
+app.post('/register', (req, res) => {
+  const userID = generateRandomString();
+  const email = req.body.email;
+  const password = req.body.password;
+  users[userID] = {
+    id: userID,
+    email: email,
+    password: password
+  }
+  res.cookie('user_id', userID);
+  res.redirect('/urls');
+});
 
 
 app.listen(PORT, () => {
