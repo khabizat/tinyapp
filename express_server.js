@@ -5,12 +5,18 @@ const PORT = 8080; // default port 8080
 //middleware
 const bodyParser = require("body-parser");
 const cookieParser = require('cookie-parser');
-const morgan = require('morgan')
+const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
+const cookieSession = require('cookie-session');
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
 app.use(morgan('dev'));
+app.use(cookieSession({
+  name: "session",
+  keys: ["la la land", "meow meow"],
+})
+);
 
 app.set('view engine', 'ejs');
 
@@ -58,10 +64,10 @@ const getUserByID = function(id) {
   for (let user in users) {
     if (user === id) {
       return users[user];
-    } 
+    }
   }
   return null;
-}
+};
 
 //checks whether the user is already registered
 const emailIsRegistered = function(email, returnUserID = false) {
@@ -75,19 +81,19 @@ const emailIsRegistered = function(email, returnUserID = false) {
     }
   }
   return false;
-}
+};
 
 //returns the URLs where the userID is equal to the id of the currently logged-in user
 const urlsForUser = function(id) {
   let userURLs = {};
   for (let shortURL in urlDatabase) {
-    let userID = urlDatabase[shortURL].userID
+    let userID = urlDatabase[shortURL].userID;
     if (userID === id) {
       userURLs[shortURL] = urlDatabase[shortURL];
     }
   }
   return userURLs;
-}
+};
 
 
 app.get('/', (req, res) => {
@@ -105,24 +111,26 @@ app.get('/hello', (req, res) => {
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
-   if (req.cookies['user_id'] === undefined) {
+  //  if (req.cookies['user_id'] === undefined) {
+  if (req.session.user_id === undefined) {
     return res.redirect('/error');
   }
-  const userURLs = urlsForUser(req.cookies['user_id']);
+  // const userURLs = urlsForUser(req.cookies['user_id']);
+  const userURLs = urlsForUser(req.session.user_id);
   const templateVars = {
     urls: userURLs,
-    user: getUserByID(req.cookies["user_id"]),
+    user: getUserByID(req.session.user_id),
   };
   res.render('urls_index', templateVars);
-}); 
+});
 
 
 //route to show the form
 app.get('/urls/new', (req, res) => {
   const templateVars = {
-    user: getUserByID(req.cookies["user_id"]),
+    user: getUserByID(req.session.user_id),
   };
-  if (req.cookies['user_id'] === undefined) {
+  if (req.session.user_id === undefined) {
     console.error('Only logged in users can add new URLs');
     return res.redirect('/login');
   }
@@ -133,9 +141,9 @@ app.get('/urls/new', (req, res) => {
 //GET register endpoint
 app.get('/register', (req, res) => {
   const templateVars = {
-    user: getUserByID(req.cookies["user_id"]),
+    user: getUserByID(req.session.user_id),
   };
-  if (req.cookies['user_id'] !== undefined) {
+  if (req.session.user_id !== undefined) {
     return res.redirect('/urls');
   }
   res.render('urls_register', templateVars);
@@ -145,44 +153,37 @@ app.get('/register', (req, res) => {
 //GET login endpoint
 app.get('/login', (req, res) => {
   const templateVars = {
-    user: getUserByID(req.cookies["user_id"]),
+    user: getUserByID(req.session.user_id),
   };
-  console.log(req.cookies['user_id'])
-  if (req.cookies['user_id'] !== undefined) {
+  if (req.session.user_id !== undefined) {
     return res.redirect('/urls');
   }
   res.  render('urls_login', templateVars);
 });
 
 app.get('/error', (req, res) => {
-   const templateVars = {
-  //  urls: userURLs,
-   user: getUserByID(req.cookies["user_id"]),
- };
+  const templateVars = {
+    user: getUserByID(req.session.user_id),
+  };
   res.render('urls_error', templateVars);
 });
 
 //route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
-  // if (myShortURL === 'register') {
-  //   const templateVars = {
-  //     user: getUserByID(req.cookies["user_id"]),
-  //   };
-  //   return res.render('urls_register', templateVars);
-  // }
-  const userURLs = urlsForUser(req.cookies['user_id']);
-  userHasNoAccess = false;
+  const userURLs = urlsForUser(req.session.user_id);
+  let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
   }
-  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+  if (req.session.user_id === undefined || userHasNoAccess) {
     res.redirect('/error');
   }
   const templateVars = {
     shortURL: myShortURL,
     longURL: userURLs[myShortURL].longURL,
-    user: getUserByID(req.cookies["user_id"]),
+    // user: getUserByID(req.cookies["user_id"]),
+    user: getUserByID(req.session.user_id),
   };
   res.render('urls_show', templateVars);
 });
@@ -199,14 +200,14 @@ app.get("/u/:shortURL", (req, res) => {
 
 //redirect after receiving a POST request
 app.post('/urls', (req, res) => {
-  if (req.cookies['user_id'] === undefined) {
+  if (req.session.user_id === undefined) {
     console.log('Somebody tried to add a URL without logging in');
     res.status(400).send('Only logged in users can add new URLs');
   }
   const shortURL = generateRandomString();
   urlDatabase[shortURL] = {
     longURL: req.body.longURL,
-    userID: req.cookies['user_id']
+    userID: req.session.user_id
   };
   res.redirect(`/urls/${shortURL}`);
 });
@@ -214,12 +215,12 @@ app.post('/urls', (req, res) => {
 //POST route that removes a URL resource
 app.post('/urls/:shortURL/delete', (req, res) => {
   const myShortURL = req.params.shortURL;
-  const userURLs = urlsForUser(req.cookies['user_id']);
-  userHasNoAccess = false;
+  const userURLs = urlsForUser(req.session.user_id);
+  let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
   }
-  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+  if (req.session.user_id === undefined || userHasNoAccess) {
     res.status(400).send('This is not your URL or you are not logged in');
   }
   delete urlDatabase[myShortURL];
@@ -230,12 +231,13 @@ app.post('/urls/:shortURL/delete', (req, res) => {
 app.post('/urls/:shortURL', (req, res) => {
   console.log(req.params.shortURL);
   const myShortURL = req.params.shortURL;
-  const userURLs = urlsForUser(req.cookies['user_id']);
-  userHasNoAccess = false;
+  // const userURLs = urlsForUser(req.cookies['user_id']);
+  const userURLs = urlsForUser(req.session.user_id);
+  let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
   }
-  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+  if (req.session.user_id === undefined || userHasNoAccess) {
     res.status(400).send('This is not your URL or you are not logged in');
   }
   userURLs[myShortURL].longURL = req.body.newValue;
@@ -244,29 +246,26 @@ app.post('/urls/:shortURL', (req, res) => {
 
 //POST login route
 app.post('/login', (req, res) => {
+  console.log(req.session.user_id);
   const loginEmail = req.body.email;
   const loginPassword = req.body.password;
-  const userID = emailIsRegistered(loginEmail, returnUserID = true);
-  // console.log(users);
+  const userID = emailIsRegistered(loginEmail, true);
   if (userID === false) {
-    // console.log(`${loginEmail} not registered!`);
     res.sendStatus(403);
   }
   const registeredPassword = users[userID].password;
-  // console.log(loginPassword + ":" + registeredPassword);
   const correctPassword = bcrypt.compareSync(loginPassword, registeredPassword);
   if (!correctPassword) {
     res.sendStatus(403);
   }
-  res.cookie('user_id', userID);
+  req.session.user_id = userID;
   res.redirect('/urls');
 });
 
 //POST logout route
 app.post('/logout', (req, res) => {
-  const userID = req.cookies['user_id'];
-  // console.log(userID);
-  res.clearCookie('user_id', userID);
+  const userID = req.session.user_id;
+  req.session = null;
   res.redirect('/urls');
 });
 
@@ -280,15 +279,15 @@ app.post('/register', (req, res) => {
   if (email === '' || password === '') {
     res.sendStatus(400);
   }
-  if (emailIsRegistered(email, return_bool = true)) {
-      res.sendStatus(400);
-  } 
-  users[userID] = {
-  id: userID,
-  email: email,
-  password: hashedPassword
+  if (emailIsRegistered(email, true)) {
+    res.sendStatus(400);
   }
-  res.cookie('user_id', userID);
+  users[userID] = {
+    id: userID,
+    email: email,
+    password: hashedPassword
+  };
+  req.session.user_id = userID;
   res.redirect('/urls');
 });
 
