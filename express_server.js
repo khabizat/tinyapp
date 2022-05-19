@@ -20,9 +20,18 @@ const generateRandomString = function() {
 
 
 const urlDatabase = {
-  "b2xVn2": "http://www.lighthouselabs.ca",
-  "9sm5xK": "http://www.google.com",
- 
+  "b2xVn2": {
+    longURL: "http://www.lighthouselabs.ca",
+    userID: 'userRandomID'
+  },
+  "9sm5xK": {
+    longURL: "http://www.google.com",
+    userID: 'user2RandomID'
+  },
+  "hdgc5i": {
+    longURL: 'https://www.nytimes.com/',
+    userID: 'cookie123'
+  }
 };
 
 const users = {
@@ -35,6 +44,11 @@ const users = {
     id: "user2RandomID",
     email: "user2@example.com",
     password: "dishwasher-funk"
+  },
+  "cookie123": {
+    id: "cookie123",
+    email: "kabby@shopify.ca",
+    password: "123"
   }
 };
 
@@ -62,6 +76,17 @@ const emailIsRegistered = function(email, returnUserID = false) {
   return false;
 }
 
+//returns the URLs where the userID is equal to the id of the currently logged-in user
+const urlsForUser = function(id) {
+  let userURLs = {};
+  for (let shortURL in urlDatabase) {
+    let userID = urlDatabase[shortURL].userID
+    if (userID === id) {
+      userURLs[shortURL] = urlDatabase[shortURL];
+    }
+  }
+  return userURLs;
+}
 
 
 app.get('/', (req, res) => {
@@ -79,12 +104,16 @@ app.get('/hello', (req, res) => {
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
+   if (req.cookies['user_id'] === undefined) {
+    return res.redirect('/error');
+  }
+  const userURLs = urlsForUser(req.cookies['user_id']);
   const templateVars = {
-    urls: urlDatabase,
+    urls: userURLs,
     user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_index', templateVars);
-});
+}); 
 
 
 //route to show the form
@@ -92,6 +121,10 @@ app.get('/urls/new', (req, res) => {
   const templateVars = {
     user: getUserByID(req.cookies["user_id"]),
   };
+  if (req.cookies['user_id'] === undefined) {
+    console.error('Only logged in users can add new URLs');
+    return res.redirect('/login');
+  }
   res.render('urls_new', templateVars);
 });
 
@@ -101,6 +134,9 @@ app.get('/register', (req, res) => {
   const templateVars = {
     user: getUserByID(req.cookies["user_id"]),
   };
+  if (req.cookies['user_id'] !== undefined) {
+    return res.redirect('/urls');
+  }
   res.render('urls_register', templateVars);
 });
 
@@ -110,21 +146,41 @@ app.get('/login', (req, res) => {
   const templateVars = {
     user: getUserByID(req.cookies["user_id"]),
   };
-  res.render('urls_login', templateVars);
+  console.log(req.cookies['user_id'])
+  if (req.cookies['user_id'] !== undefined) {
+    return res.redirect('/urls');
+  }
+  res.  render('urls_login', templateVars);
+});
+
+app.get('/error', (req, res) => {
+   const templateVars = {
+  //  urls: userURLs,
+   user: getUserByID(req.cookies["user_id"]),
+ };
+  res.render('urls_error', templateVars);
 });
 
 //route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
-  if (myShortURL === 'register') {
-    const templateVars = {
-      user: getUserByID(req.cookies["user_id"]),
-    };
-    return res.render('urls_register', templateVars);
+  // if (myShortURL === 'register') {
+  //   const templateVars = {
+  //     user: getUserByID(req.cookies["user_id"]),
+  //   };
+  //   return res.render('urls_register', templateVars);
+  // }
+  const userURLs = urlsForUser(req.cookies['user_id']);
+  userHasNoAccess = false;
+  if (userURLs[myShortURL] === undefined) {
+    userHasNoAccess = true;
+  }
+  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+    res.redirect('/error');
   }
   const templateVars = {
     shortURL: myShortURL,
-    longURL: urlDatabase[myShortURL],
+    longURL: userURLs[myShortURL].longURL,
     user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_show', templateVars);
@@ -133,21 +189,38 @@ app.get('/urls/:shortURL', (req, res) => {
 //route for handling redirect links
 app.get("/u/:shortURL", (req, res) => {
   const myShortURL = req.params.shortURL;
-  const longURL = urlDatabase[myShortURL];
+  if (urlDatabase[myShortURL] === undefined) {
+    res.status(400).send('The short URL has not been recognised');
+  }
+  const longURL = urlDatabase[myShortURL].longURL;
   res.redirect(longURL);
 });
 
 //redirect after receiving a POST request
 app.post('/urls', (req, res) => {
-  console.log(req.body);  // Log the POST request body to the console
-  const shortURL = generateRandomString(); //???
-  urlDatabase[shortURL] = req.body.longURL;
+  if (req.cookies['user_id'] === undefined) {
+    console.log('Somebody tried to add a URL without logging in');
+    res.status(400).send('Only logged in users can add new URLs');
+  }
+  const shortURL = generateRandomString();
+  urlDatabase[shortURL] = {
+    longURL: req.body.longURL,
+    userID: req.cookies['user_id']
+  };
   res.redirect(`/urls/${shortURL}`);
 });
 
 //POST route that removes a URL resource
 app.post('/urls/:shortURL/delete', (req, res) => {
   const myShortURL = req.params.shortURL;
+  const userURLs = urlsForUser(req.cookies['user_id']);
+  userHasNoAccess = false;
+  if (userURLs[myShortURL] === undefined) {
+    userHasNoAccess = true;
+  }
+  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+    res.status(400).send('This is not your URL or you are not logged in');
+  }
   delete urlDatabase[myShortURL];
   res.redirect('/urls');
 });
@@ -156,7 +229,15 @@ app.post('/urls/:shortURL/delete', (req, res) => {
 app.post('/urls/:shortURL', (req, res) => {
   console.log(req.params.shortURL);
   const myShortURL = req.params.shortURL;
-  urlDatabase[myShortURL] = req.body.newValue;
+  const userURLs = urlsForUser(req.cookies['user_id']);
+  userHasNoAccess = false;
+  if (userURLs[myShortURL] === undefined) {
+    userHasNoAccess = true;
+  }
+  if (req.cookies["user_id"] === undefined || userHasNoAccess) {
+    res.status(400).send('This is not your URL or you are not logged in');
+  }
+  userURLs[myShortURL].longURL = req.body.newValue;
   res.redirect('/urls');
 });
 
