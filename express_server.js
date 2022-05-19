@@ -2,25 +2,67 @@ const express = require('express');
 const app = express();
 const PORT = 8080; // default port 8080
 
-//body-parser library converts Buffer into a readable string 
+//middleware
 const bodyParser = require("body-parser");
 const cookieParser = require('cookie-parser');
+const morgan = require('morgan')
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
+app.use(morgan('dev'));
 
 app.set('view engine', 'ejs');
 
 //function that returns a string of 6 random alphanumeric characters
-function generateRandomString() {
+const generateRandomString = function() {
   return Math.random().toString(36).slice(2,8);
-}
+};
+
 
 const urlDatabase = {
   "b2xVn2": "http://www.lighthouselabs.ca",
   "9sm5xK": "http://www.google.com",
  
 };
+
+const users = {
+  "userRandomID": {
+    id: "userRandomID",
+    email: "user@example.com",
+    password: "purple-monkey-dinosaur"
+  },
+  "user2RandomID": {
+    id: "user2RandomID",
+    email: "user2@example.com",
+    password: "dishwasher-funk"
+  }
+};
+
+//returns user object
+const getUserByID = function(id) {
+  for (let user in users) {
+    if (user === id) {
+      return users[user];
+    } 
+  }
+  return null;
+}
+
+//checks whether the user is already registered
+const emailIsRegistered = function(email, returnUserID = false) {
+  for (let userID in users) {
+    if (users[userID].email === email) {
+      if (returnUserID === false) {
+        return true;
+      } else {
+        return userID;
+      }
+    }
+  }
+  return false;
+}
+
+
 
 app.get('/', (req, res) => {
   res.send('Hello!');
@@ -37,10 +79,10 @@ app.get('/hello', (req, res) => {
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
-  const templateVars = { 
+  const templateVars = {
     urls: urlDatabase,
-    username: req.cookies["username"],
-   };
+    user: getUserByID(req.cookies["user_id"]),
+  };
   res.render('urls_index', templateVars);
 });
 
@@ -48,20 +90,42 @@ app.get('/urls', (req, res) => {
 //route to show the form
 app.get('/urls/new', (req, res) => {
   const templateVars = {
-    username: req.cookies["username"],
+    user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_new', templateVars);
 });
 
 
+//GET register endpoint
+app.get('/register', (req, res) => {
+  const templateVars = {
+    user: getUserByID(req.cookies["user_id"]),
+  };
+  res.render('urls_register', templateVars);
+});
+
+
+//GET login endpoint
+app.get('/login', (req, res) => {
+  const templateVars = {
+    user: getUserByID(req.cookies["user_id"]),
+  };
+  res.render('urls_login', templateVars);
+});
 
 //route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
+  if (myShortURL === 'register') {
+    const templateVars = {
+      user: getUserByID(req.cookies["user_id"]),
+    };
+    return res.render('urls_register', templateVars);
+  }
   const templateVars = {
     shortURL: myShortURL,
     longURL: urlDatabase[myShortURL],
-    username: req.cookies["username"],
+    user: getUserByID(req.cookies["user_id"]),
   };
   res.render('urls_show', templateVars);
 });
@@ -98,19 +162,52 @@ app.post('/urls/:shortURL', (req, res) => {
 
 //POST login route
 app.post('/login', (req, res) => {
-  const username = req.body.username;
-  res.cookie('username', username);
-  // res.send('You are logged in')
+  const loginEmail = req.body.email;
+  const loginPassword = req.body.password;
+  const userID = emailIsRegistered(loginEmail, returnUserID = true);
+  // console.log(users);
+  if (userID === false) {
+    // console.log(`${loginEmail} not registered!`);
+    res.sendStatus(403);
+  }
+  const registeredPassword = users[userID].password;
+  // console.log(loginPassword + ":" + registeredPassword);
+  if (loginPassword !== registeredPassword) {
+    // console.log("Wrong password!");
+    res.sendStatus(403);
+  }
+  res.cookie('user_id', userID);
   res.redirect('/urls');
 });
 
 //POST logout route
 app.post('/logout', (req, res) => {
-  const username = req.body.username;
-  res.clearCookie('username', username);
+  const userID = req.cookies['user_id'];
+  // console.log(userID);
+  res.clearCookie('user_id', userID);
   res.redirect('/urls');
 });
 
+//POST register route
+app.post('/register', (req, res) => {
+  const userID = generateRandomString();
+  const email = req.body.email;
+  const password = req.body.password;
+
+  if (email === '' || password === '') {
+    res.sendStatus(400);
+  }
+  if (emailIsRegistered(email, return_bool = true)) {
+      res.sendStatus(400);
+  } 
+  users[userID] = {
+  id: userID,
+  email: email,
+  password: password
+  }
+  res.cookie('user_id', userID);
+  res.redirect('/urls');
+});
 
 
 app.listen(PORT, () => {
