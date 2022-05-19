@@ -6,6 +6,7 @@ const PORT = 8080; // default port 8080
 const bodyParser = require("body-parser");
 const cookieParser = require('cookie-parser');
 const morgan = require('morgan')
+const bcrypt = require('bcryptjs');
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(cookieParser());
@@ -253,8 +254,8 @@ app.post('/login', (req, res) => {
   }
   const registeredPassword = users[userID].password;
   // console.log(loginPassword + ":" + registeredPassword);
-  if (loginPassword !== registeredPassword) {
-    // console.log("Wrong password!");
+  const correctPassword = bcrypt.compareSync(loginPassword, registeredPassword);
+  if (!correctPassword) {
     res.sendStatus(403);
   }
   res.cookie('user_id', userID);
@@ -274,6 +275,7 @@ app.post('/register', (req, res) => {
   const userID = generateRandomString();
   const email = req.body.email;
   const password = req.body.password;
+  const hashedPassword = bcrypt.hashSync(password, 10);
 
   if (email === '' || password === '') {
     res.sendStatus(400);
@@ -284,7 +286,7 @@ app.post('/register', (req, res) => {
   users[userID] = {
   id: userID,
   email: email,
-  password: password
+  password: hashedPassword
   }
   res.cookie('user_id', userID);
   res.redirect('/urls');
