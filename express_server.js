@@ -1,18 +1,17 @@
 const express = require('express');
-// const { generateRandomString, getUserByID, getUserByEmail, urlsForUser } = require('./helpers') 
 const app = express();
 const PORT = 8080; // default port 8080
 
+// importing helper functions
+const { generateRandomString, getUserByID, getUserByEmail, urlsForUser } = require('./helpers');
 
 //middleware
 const bodyParser = require("body-parser");
-const cookieParser = require('cookie-parser');
 const morgan = require('morgan');
 const bcrypt = require('bcryptjs');
 const cookieSession = require('cookie-session');
 
 app.use(bodyParser.urlencoded({extended: true}));
-app.use(cookieParser());
 app.use(morgan('dev'));
 app.use(cookieSession({
   name: "session",
@@ -21,11 +20,6 @@ app.use(cookieSession({
 );
 
 app.set('view engine', 'ejs');
-
-//function that returns a string of 6 random alphanumeric characters
-const generateRandomString = function() {
-  return Math.random().toString(36).slice(2,8);
-};
 
 
 const urlDatabase = {
@@ -39,7 +33,7 @@ const urlDatabase = {
   },
   "hdgc5i": {
     longURL: 'https://www.nytimes.com/',
-    userID: 'cookie123'
+    userID: 'user4RandomID'
   }
 };
 
@@ -54,141 +48,90 @@ const users = {
     email: "user2@example.com",
     password: "dishwasher-funk"
   },
-  "cookie123": {
-    id: "cookie123",
-    email: "kabby@shopify.ca",
+  "user3RandomID": {
+    id: "user3RandomID",
+    email: "hello@hi.hi",
     password: "123"
+  },
+  "user4RandomID": {
+    id: "user4RandomID",
+    email: "little@tree.qq",
+    password: "hellothere"
   }
+
 };
-
-//returns user object
-const getUserByID = function(id) {
-  for (let user in users) {
-    if (user === id) {
-      return users[user];
-    }
-  }
-  return null;
-};
-
-//checks whether the user is already registered
-const emailIsRegistered = function(email, returnUserID = false) {
-  for (let userID in users) {
-    if (users[userID].email === email) {
-      if (returnUserID === false) {
-        return true;
-      } else {
-        return userID;
-      }
-    }
-  }
-  return false;
-};
-
-//returns the URLs where the userID is equal to the id of the currently logged-in user
-const urlsForUser = function(id) {
-  let userURLs = {};
-  for (let shortURL in urlDatabase) {
-    let userID = urlDatabase[shortURL].userID;
-    if (userID === id) {
-      userURLs[shortURL] = urlDatabase[shortURL];
-    }
-  }
-  return userURLs;
-};
-
-
-app.get('/', (req, res) => {
-  res.send('Hello!');
-});
 
 app.get('/urls.json', (req, res) => {
   res.json(urlDatabase);
 });
 
 
-app.get('/hello', (req, res) => {
-  res.send('<html><body>Hello <b>World</b></body></html>\n');
+app.get('/', (req, res) => {
+  if (req.session.user_id === undefined) {
+    return res.redirect('/login');
+  }
+  return res.redirect('/urls');
 });
+
 
 //route handler for passing the URL data to the template using render
 app.get('/urls', (req, res) => {
-  //  if (req.cookies['user_id'] === undefined) {
-  if (req.session.user_id === undefined) {
-    return res.redirect('/error');
-  }
-  // const userURLs = urlsForUser(req.cookies['user_id']);
-  const userURLs = urlsForUser(req.session.user_id);
+  const userURLs = urlsForUser(req.session.user_id, urlDatabase);
   const templateVars = {
     urls: userURLs,
-    user: getUserByID(req.session.user_id),
+    user: getUserByID(req.session.user_id, users),
   };
+  //display error page if not logged in
+  if (req.session.user_id === undefined) {
+    return res.render('urls_error', templateVars);
+  }
   res.render('urls_index', templateVars);
 });
 
 
 //route to show the form
 app.get('/urls/new', (req, res) => {
-  const templateVars = {
-    user: getUserByID(req.session.user_id),
-  };
   if (req.session.user_id === undefined) {
-    console.error('Only logged in users can add new URLs');
     return res.redirect('/login');
   }
+  const templateVars = {
+    user: getUserByID(req.session.user_id, users),
+  };
   res.render('urls_new', templateVars);
 });
 
 
-//GET register endpoint
-app.get('/register', (req, res) => {
-  const templateVars = {
-    user: getUserByID(req.session.user_id),
-  };
-  if (req.session.user_id !== undefined) {
-    return res.redirect('/urls');
-  }
-  res.render('urls_register', templateVars);
-});
-
-
-//GET login endpoint
-app.get('/login', (req, res) => {
-  const templateVars = {
-    user: getUserByID(req.session.user_id),
-  };
-  if (req.session.user_id !== undefined) {
-    return res.redirect('/urls');
-  }
-  res.  render('urls_login', templateVars);
-});
-
-app.get('/error', (req, res) => {
-  const templateVars = {
-    user: getUserByID(req.session.user_id),
-  };
-  res.render('urls_error', templateVars);
-});
-
 //route handler for passing the URL data to the template using render
 app.get('/urls/:shortURL', (req, res) => {
   const myShortURL = req.params.shortURL;
-  const userURLs = urlsForUser(req.session.user_id);
+  const userURLs = urlsForUser(req.session.user_id, urlDatabase);
   let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
   }
+  // user is not logged in and trying to acces link
   if (req.session.user_id === undefined || userHasNoAccess) {
-    res.redirect('/error');
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error', templateVars);
   }
+  //user logged in and trying to access link that is not in database
+  if (req.session.user_id === !undefined && userHasNoAccess === false) {
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error', templateVars);
+  }
+
   const templateVars = {
     shortURL: myShortURL,
     longURL: userURLs[myShortURL].longURL,
-    // user: getUserByID(req.cookies["user_id"]),
-    user: getUserByID(req.session.user_id),
+    user: getUserByID(req.session.user_id, users),
   };
   res.render('urls_show', templateVars);
 });
+
 
 //route for handling redirect links
 app.get("/u/:shortURL", (req, res) => {
@@ -200,12 +143,40 @@ app.get("/u/:shortURL", (req, res) => {
   res.redirect(longURL);
 });
 
+//GET register endpoint
+app.get('/register', (req, res) => {
+  if (req.session.user_id !== undefined) {
+    return res.redirect('/urls');
+  }
+  const templateVars = {
+    user: getUserByID(req.session.user_id, users),
+  };
+  res.render('urls_register', templateVars);
+});
+
+
+//GET login endpoint
+app.get('/login', (req, res) => {
+  if (req.session.user_id !== undefined) {
+    return res.redirect('/urls');
+  }
+  const templateVars = {
+    user: getUserByID(req.session.user_id, users),
+  };
+  res.  render('urls_login', templateVars);
+});
+
+
 //redirect after receiving a POST request
 app.post('/urls', (req, res) => {
+  //if user is not logged in and trying to access a list of links
   if (req.session.user_id === undefined) {
-    console.log('Somebody tried to add a URL without logging in');
-    res.status(400).send('Only logged in users can add new URLs');
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error', templateVars);
   }
+  //if user is logged in and creates new short URL
   const shortURL = generateRandomString();
   urlDatabase[shortURL] = {
     longURL: req.body.longURL,
@@ -217,7 +188,7 @@ app.post('/urls', (req, res) => {
 //POST route that removes a URL resource
 app.post('/urls/:shortURL/delete', (req, res) => {
   const myShortURL = req.params.shortURL;
-  const userURLs = urlsForUser(req.session.user_id);
+  const userURLs = urlsForUser(req.session.user_id, urlDatabase);
   let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
@@ -231,43 +202,19 @@ app.post('/urls/:shortURL/delete', (req, res) => {
 
 //POST route that updates a URL resource
 app.post('/urls/:shortURL', (req, res) => {
-  console.log(req.params.shortURL);
   const myShortURL = req.params.shortURL;
-  // const userURLs = urlsForUser(req.cookies['user_id']);
-  const userURLs = urlsForUser(req.session.user_id);
+  const userURLs = urlsForUser(req.session.user_id, urlDatabase);
   let userHasNoAccess = false;
   if (userURLs[myShortURL] === undefined) {
     userHasNoAccess = true;
   }
   if (req.session.user_id === undefined || userHasNoAccess) {
-    res.status(400).send('This is not your URL or you are not logged in');
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error', templateVars);
   }
   userURLs[myShortURL].longURL = req.body.newValue;
-  res.redirect('/urls');
-});
-
-//POST login route
-app.post('/login', (req, res) => {
-  console.log(req.session.user_id);
-  const loginEmail = req.body.email;
-  const loginPassword = req.body.password;
-  const userID = emailIsRegistered(loginEmail, true);
-  if (userID === false) {
-    res.sendStatus(403);
-  }
-  const registeredPassword = users[userID].password;
-  const correctPassword = bcrypt.compareSync(loginPassword, registeredPassword);
-  if (!correctPassword) {
-    res.sendStatus(403);
-  }
-  req.session.user_id = userID;
-  res.redirect('/urls');
-});
-
-//POST logout route
-app.post('/logout', (req, res) => {
-  const userID = req.session.user_id;
-  req.session = null;
   res.redirect('/urls');
 });
 
@@ -279,10 +226,16 @@ app.post('/register', (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
 
   if (email === '' || password === '') {
-    res.sendStatus(400);
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error_register', templateVars);
   }
-  if (emailIsRegistered(email, true)) {
-    res.sendStatus(400);
+  if (getUserByEmail(email, users) !== undefined) {
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error_register', templateVars);
   }
   users[userID] = {
     id: userID,
@@ -293,6 +246,35 @@ app.post('/register', (req, res) => {
   res.redirect('/urls');
 });
 
+
+//POST login route
+app.post('/login', (req, res) => {
+  const loginEmail = req.body.email;
+  const loginPassword = req.body.password;
+  const userID = getUserByEmail(loginEmail, users);
+  if (userID === undefined) {
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error_login', templateVars);
+  }
+  const registeredPassword = users[userID].password;
+  const correctPassword = bcrypt.compareSync(loginPassword, registeredPassword);
+  if (!correctPassword) {
+    const templateVars = {
+      user: getUserByID(req.session.user_id, users),
+    };
+    res.render('urls_error_login', templateVars);
+  }
+  req.session.user_id = userID;
+  res.redirect('/urls');
+});
+
+//POST logout route
+app.post('/logout', (req, res) => {
+  req.session = null;
+  res.redirect('/urls');
+});
 
 app.listen(PORT, () => {
   console.log(`Example app listening on port ${PORT}!`);
