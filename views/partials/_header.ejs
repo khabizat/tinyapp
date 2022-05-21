@@ -9,7 +9,8 @@
         <a class="nav-item nav-link" href="/urls">My URLs</a>
         <a class="nav-item nav-link" href="/urls/new">Create New URL</a>
         <% if(user){ %>
-          <h5>Logged In As <%= user.email %></h5>
+          <!-- <p>Logged In As <%= user.email %></p> -->
+          <span class="navbar-brand" style="font-size:14.2pt">Logged In As <%= user.email %></span>
           <form method="POST" action= "/logout" >
             <button class="btn btn-primary" type="submit">Log Out</button>
           </form> 
